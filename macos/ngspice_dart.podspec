@@ -27,6 +27,7 @@ A new Flutter FFI plugin project.
   # s.resource_bundles = {'ngspice_dart_privacy' => ['ngspice_dart/Sources/ngspice_dart/PrivacyInfo.xcprivacy']}
 
   s.dependency 'FlutterMacOS'
+  s.vendored_libraries = 'libngspice.dylib'
 
   s.platform = :osx, '10.11'
   s.pod_target_xcconfig = { 'DEFINES_MODULE' => 'YES' }

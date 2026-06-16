@@ -35,5 +35,13 @@ void main() {
       final runResult = ngspice.command('run');
       expect(runResult, equals(0), reason: 'Simulation run should return 0 (success)');
     });
+
+    test('should get vector data', () {
+      final vec = ngspice.getVector('v(1)');
+      expect(vec, isNotNull);
+      expect(vec!.isNotEmpty, isTrue);
+      // Since it's a step simulation or tran, we should have values.
+      expect(vec.first, closeTo(5.0, 1e-4));
+    });
   });
 }

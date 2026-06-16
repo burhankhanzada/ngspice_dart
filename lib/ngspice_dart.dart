@@ -67,4 +67,29 @@ class Ngspice {
     
     return result;
   }
+
+  /// Get real data vector by name
+  List<double>? getVector(String vecName) {
+    final namePtr = vecName.toNativeUtf8();
+    final infoPtr = _bindings.ngGet_Vec_Info(namePtr.cast<Char>());
+    malloc.free(namePtr);
+
+    if (infoPtr == nullptr) {
+      return null;
+    }
+
+    final info = infoPtr.ref;
+    final length = info.v_length;
+    if (length <= 0) return null;
+
+    if (info.v_realdata != nullptr) {
+      final data = <double>[];
+      for (int i = 0; i < length; i++) {
+        data.add(info.v_realdata[i]);
+      }
+      return data;
+    }
+
+    return null;
+  }
 }
