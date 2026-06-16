@@ -1,95 +1,63 @@
 # ngspice_dart
 
-A new Flutter FFI plugin project.
+Dart FFI bindings for the **ngspice** mixed-level/mixed-signal circuit simulator, allowing native execution of SPICE simulations directly in Flutter and Dart.
 
-## Getting Started
+This plugin allows you to parse netlists, run simulations (transient, AC, DC, etc.), and retrieve vector data directly into Dart.
 
-This project is a starting point for a Flutter
-[FFI plugin](https://flutter.dev/to/ffi-package),
-a specialized package that includes native code directly invoked with Dart FFI.
+## Features
 
-## Project structure
+* **Initialize ngspice**: Load the simulator engine natively.
+* **Execute SPICE Commands**: Run commands just like in the ngspice interactive console (e.g. `run`, `print all`).
+* **Load Circuits**: Parse netlists directly from an array of strings in memory.
+* **Data Retrieval**: Extract simulation vectors (real data) into Dart `List<double>` for plotting or analysis.
 
-This template uses the following structure:
+## Setup & Requirements
 
-* `src`: Contains the native source code, and a CmakeFile.txt file for building
-  that source code into a dynamic library.
+> **IMPORTANT:** Because `ngspice` is a massive C codebase relying on `autotools` rather than standard mobile build systems, compiling it from source across all mobile architectures natively is complex.
+> 
+> You **must provide the pre-compiled ngspice shared library** (`libngspice.so`, `libngspice.dylib`, or `ngspice.dll`) for the target platforms and bundle them within your Flutter application.
 
-* `lib`: Contains the Dart code that defines the API of the plugin, and which
-  calls into the native code using `dart:ffi`.
-
-* platform folders (`android`, `ios`, `windows`, etc.): Contains the build files
-  for building and bundling the native code library with the platform application.
-
-## Building and bundling native code
-
-The `pubspec.yaml` specifies FFI plugins as follows:
-
-```yaml
-  plugin:
-    platforms:
-      some_platform:
-        ffiPlugin: true
+### macOS Example
+If you compile `libngspice.dylib` locally on your Mac, you can drop it into the `macos/` folder of this plugin and it will be bundled automatically via the podspec:
+```ruby
+s.vendored_libraries = 'libngspice.dylib'
 ```
 
-This configuration invokes the native build for the various target platforms
-and bundles the binaries in Flutter applications using these FFI plugins.
+## Usage
 
-This can be combined with dartPluginClass, such as when FFI is used for the
-implementation of one platform in a federated plugin:
+```dart
+import 'package:ngspice_dart/ngspice_dart.dart';
 
-```yaml
-  plugin:
-    implements: some_other_plugin
-    platforms:
-      some_platform:
-        dartPluginClass: SomeClass
-        ffiPlugin: true
+void main() {
+  final ngspice = Ngspice();
+  
+  // 1. Initialize the engine
+  ngspice.init();
+  
+  // 2. Load a circuit
+  ngspice.circuit([
+    '* A simple RC circuit',
+    'v1 1 0 dc 5',
+    'r1 1 2 1k',
+    'c1 2 0 1u',
+    '.tran 0.1m 10m',
+    '.end'
+  ]);
+  
+  // 3. Run the simulation
+  ngspice.command('run');
+  
+  // 4. Retrieve data (e.g., voltage at node 1)
+  final vec = ngspice.getVector('v(1)');
+  if (vec != null) {
+    print('Voltage at node 1: \${vec.first} V');
+  }
+}
 ```
 
-A plugin can have both FFI and method channels:
+## Re-generating Bindings
 
-```yaml
-  plugin:
-    platforms:
-      some_platform:
-        pluginClass: SomeName
-        ffiPlugin: true
-```
+If you need to update the FFI bindings to a newer version of ngspice's `sharedspice.h`:
 
-The native build systems that are invoked by FFI (and method channel) plugins are:
-
-* For Android: Gradle, which invokes the Android NDK for native builds.
-  * See the documentation in android/build.gradle.
-* For iOS and MacOS: Xcode, via CocoaPods.
-  * See the documentation in ios/ngspice_dart.podspec.
-  * See the documentation in macos/ngspice_dart.podspec.
-* For Linux and Windows: CMake.
-  * See the documentation in linux/CMakeLists.txt.
-  * See the documentation in windows/CMakeLists.txt.
-
-## Binding to native code
-
-To use the native code, bindings in Dart are needed.
-To avoid writing these by hand, they are generated from the header file
-(`src/ngspice_dart.h`) by `package:ffigen`.
-Regenerate the bindings by running `dart run ffigen --config ffigen.yaml`.
-
-## Invoking native code
-
-Very short-running native functions can be directly invoked from any isolate.
-For example, see `sum` in `lib/ngspice_dart.dart`.
-
-Longer-running functions should be invoked on a helper isolate to avoid
-dropping frames in Flutter applications.
-For example, see `sumAsync` in `lib/ngspice_dart.dart`.
-
-## Flutter help
-
-For help getting started with Flutter, view our
-[online documentation](https://docs.flutter.dev), which offers tutorials,
-samples, guidance on mobile development, and a full API reference.
-
-The plugin project was generated without specifying the `--platforms` flag, so no platforms are currently supported.
-To add platforms, run `flutter create -t plugin_ffi --platforms <platforms> .` in this directory.
-You can also find a detailed instruction on how to add platforms in the `pubspec.yaml` at https://flutter.dev/to/pubspec-plugin-platforms.
+1. Place the new `sharedspice.h` in the `src/ngspice/src/include/ngspice/` directory.
+2. Run `dart run ffigen --config ffigen.yaml`.
