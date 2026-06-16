@@ -31,3 +31,6 @@ migrate_working_dir/
 .flutter-plugins-dependencies
 /build/
 /coverage/
+
+# Exclude the large ngspice C source tree
+src/ngspice/
