@@ -2,6 +2,7 @@ import 'analysis/result.dart';
 import 'analysis/simulator.dart';
 import 'circuit/circuit.dart';
 import 'circuit/mna.dart';
+import 'devices/sources.dart';
 import 'numeric/complex.dart';
 import 'parser/netlist_parser.dart';
 
@@ -69,6 +70,8 @@ class NgspiceEngine {
           loadCircuitFromCurrent();
         }
         return true;
+      case 'alter':
+        return _handleAlter(trimmed);
       case 'print':
       case 'plot':
       case 'set':
@@ -89,6 +92,56 @@ class NgspiceEngine {
 
   void loadCircuitFromCurrent() {
     _simulator = null;
+  }
+
+  /// Handles the interactive `alter <device> = <value>` command (also accepts
+  /// `alter <device> <value>` and ngspice's `@name[param] = value` form),
+  /// changing the DC value of an independent source in place. The new value
+  /// takes effect on the next analysis. Returns true if a matching source was
+  /// found and updated.
+  bool _handleAlter(String command) {
+    final c = _circuit;
+    if (c == null) return false;
+
+    final firstSpace = command.indexOf(RegExp(r'\s'));
+    if (firstSpace < 0) return false;
+    final args = command.substring(firstSpace + 1).trim();
+
+    String target;
+    String valueStr;
+    final eq = args.indexOf('=');
+    if (eq >= 0) {
+      target = args.substring(0, eq).trim();
+      valueStr = args.substring(eq + 1).trim();
+    } else {
+      final parts = args.split(RegExp(r'\s+'));
+      if (parts.length < 2) return false;
+      target = parts.first;
+      valueStr = parts.last;
+    }
+
+    // Normalise ngspice's `@name[param]` addressing form to a bare name.
+    target = target.replaceAll('@', '');
+    final bracket = target.indexOf('[');
+    if (bracket >= 0) target = target.substring(0, bracket).trim();
+
+    final value = double.tryParse(valueStr);
+    if (value == null) return false;
+
+    final lname = target.toLowerCase();
+    for (final d in c.devices) {
+      if (d.name.toLowerCase() != lname) continue;
+      if (d is VoltageSource) {
+        d.dcOverride = value;
+      } else if (d is CurrentSource) {
+        d.dcOverride = value;
+      } else {
+        return false; // found, but not an alterable independent source
+      }
+      _simulator = null; // invalidate stale result; next analysis re-solves
+      return true;
+    }
+    return false;
   }
 
   void _handlePrint(List<String> tokens) {

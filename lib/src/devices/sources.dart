@@ -13,6 +13,12 @@ class VoltageSource extends Device {
   /// When set, overrides the DC value during a `.dc` sweep.
   double? dcSweepValue;
 
+  /// Runtime DC value override set via the interactive `alter` command. Takes
+  /// precedence over the parsed waveform DC for operating-point and DC analyses
+  /// (but not over a transient stimulus during transient analysis). This lets
+  /// callers re-solve with a changed source value without rebuilding the deck.
+  double? dcOverride;
+
   VoltageSource(super.name, this.nPlus, this.nMinus, this.waveform);
 
   @override
@@ -23,6 +29,11 @@ class VoltageSource extends Device {
   double _value(StampContext ctx) {
     if (ctx.mode == AnalysisMode.dc && dcSweepValue != null) {
       return dcSweepValue!;
+    }
+    final override = dcOverride;
+    if (override != null &&
+        !(ctx.mode == AnalysisMode.transient && waveform.transient != null)) {
+      return override;
     }
     return waveform.valueAt(ctx.time, ctx.mode);
   }
@@ -64,13 +75,20 @@ class CurrentSource extends Device {
   /// When set, overrides the DC value during a `.dc` sweep.
   double? dcSweepValue;
 
+  /// Runtime DC value override set via the interactive `alter` command.
+  double? dcOverride;
+
   CurrentSource(super.name, this.nPlus, this.nMinus, this.waveform);
 
   @override
   void stamp(StampContext ctx) {
     final i = (ctx.mode == AnalysisMode.dc && dcSweepValue != null)
         ? dcSweepValue!
-        : waveform.valueAt(ctx.time, ctx.mode);
+        : (dcOverride != null &&
+                !(ctx.mode == AnalysisMode.transient &&
+                    waveform.transient != null))
+            ? dcOverride!
+            : waveform.valueAt(ctx.time, ctx.mode);
     // Current leaves nPlus and enters nMinus.
     ctx.mna.stampCurrentSource(nPlus, nMinus, i);
   }

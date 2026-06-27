@@ -48,4 +48,47 @@ void main() {
       expect(vec.first, closeTo(5.0, 1e-4));
     });
   });
+
+  group('alter command', () {
+    // A driven node through a series resistor to ground: the branch current of
+    // the source is V/R, so altering V must change the operating point on the
+    // next `op` without reloading the netlist.
+    Ngspice loadDivider() {
+      final ng = Ngspice()..init();
+      ng.circuit([
+        '* alter regression: source -> 1k -> ground',
+        'V1 1 0 dc 0',
+        'R1 1 0 1k',
+        '.op',
+        '.end',
+      ]);
+      return ng;
+    }
+
+    test('alter <name> = <value> updates the source on the next op', () {
+      final ng = loadDivider();
+
+      expect(ng.command('alter V1 = 5'), equals(0));
+      ng.command('op');
+      // i(V1) is the branch current flowing +->- through the source: -V/R.
+      expect(ng.getVector('i(V1)')!.first, closeTo(-5.0 / 1000.0, 1e-9));
+
+      // Re-altering the same source must take effect again.
+      expect(ng.command('alter V1 = 2'), equals(0));
+      ng.command('op');
+      expect(ng.getVector('i(V1)')!.first, closeTo(-2.0 / 1000.0, 1e-9));
+    });
+
+    test('alter accepts the space-separated form', () {
+      final ng = loadDivider();
+      ng.command('alter V1 3');
+      ng.command('op');
+      expect(ng.getVector('v(1)')!.first, closeTo(3.0, 1e-9));
+    });
+
+    test('altering an unknown source reports failure', () {
+      final ng = loadDivider();
+      expect(ng.command('alter V_missing = 5'), equals(1));
+    });
+  });
 }

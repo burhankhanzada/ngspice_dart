@@ -1,3 +1,11 @@
+## 0.2.1
+
+- Added support for the interactive `alter <device> = <value>` command (also
+  accepts `alter <device> <value>` and the `@name[param]=value` form). It
+  overrides the DC value of an independent V/I source in place, so callers can
+  re-solve with a changed source value without rebuilding the netlist — the
+  change takes effect on the next `op`/`dc`/`tran` analysis.
+
 ## 0.2.0
 
 - **Native Dart port.** Replaced the FFI binding to `libngspice` with a
