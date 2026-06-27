@@ -11,12 +11,14 @@ void main() {
 
     test('should initialize successfully', () {
       final initResult = ngspice.init();
-      expect(initResult, equals(0), reason: 'Initialization should return 0 (success)');
+      expect(initResult, equals(0),
+          reason: 'Initialization should return 0 (success)');
     });
 
     test('should execute a simple command', () {
       final cmdResult = ngspice.command('print all');
-      expect(cmdResult, equals(0), reason: 'Command execution should return 0 (success)');
+      expect(cmdResult, equals(0),
+          reason: 'Command execution should return 0 (success)');
     });
 
     test('should load a simple RC circuit', () {
@@ -28,12 +30,14 @@ void main() {
         '.tran 0.1m 10m',
         '.end'
       ]);
-      expect(circResult, equals(0), reason: 'Circuit loading should return 0 (success)');
+      expect(circResult, equals(0),
+          reason: 'Circuit loading should return 0 (success)');
     });
 
     test('should run the simulation', () {
       final runResult = ngspice.command('run');
-      expect(runResult, equals(0), reason: 'Simulation run should return 0 (success)');
+      expect(runResult, equals(0),
+          reason: 'Simulation run should return 0 (success)');
     });
 
     test('should get vector data', () {

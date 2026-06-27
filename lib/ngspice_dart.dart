@@ -1,95 +1,71 @@
-import 'dart:ffi';
-import 'dart:io';
-import 'package:ffi/ffi.dart';
-import 'ngspice_dart_bindings_generated.dart';
+/// ngspice_dart — a pure-Dart SPICE circuit simulator.
+///
+/// This package began life as Dart FFI bindings to the C `libngspice` shared
+/// library. It is now a **native Dart port**: netlist parsing, Modified Nodal
+/// Analysis assembly, the Newton-Raphson nonlinear solver and the OP/DC/
+/// transient/AC analyses all run in pure Dart with no native dependency.
+///
+/// The [Ngspice] facade keeps the original ergonomic API (`init`, `command`,
+/// `circuit`, `getVector`) so existing code keeps working. For richer access to
+/// the engine (multiple result plots, complex AC vectors, the parsed circuit),
+/// use [NgspiceEngine] directly.
+library;
 
-const String _libName = 'ngspice';
+import 'src/engine.dart';
+import 'src/numeric/complex.dart';
 
-final DynamicLibrary _dylib = () {
-  if (Platform.isMacOS || Platform.isIOS) {
-    return DynamicLibrary.open('lib$_libName.dylib');
-  }
-  if (Platform.isAndroid || Platform.isLinux) {
-    return DynamicLibrary.open('lib$_libName.so');
-  }
-  if (Platform.isWindows) {
-    return DynamicLibrary.open('$_libName.dll');
-  }
-  throw UnsupportedError('Unknown platform: ${Platform.operatingSystem}');
-}();
+export 'src/engine.dart' show NgspiceEngine;
+export 'src/analysis/result.dart' show SimResult;
+export 'src/analysis/simulator.dart' show Simulator;
+export 'src/circuit/circuit.dart';
+export 'src/circuit/mna.dart' show IntegrationMethod, AnalysisMode;
+export 'src/numeric/complex.dart' show Complex;
+export 'src/parser/netlist_parser.dart'
+    show NetlistParser, NetlistParseException;
+export 'src/parser/value_parser.dart' show SpiceValue;
 
-final NgspiceDartBindings _bindings = NgspiceDartBindings(_dylib);
-
+/// High-level facade over [NgspiceEngine], API-compatible with the previous
+/// FFI-backed implementation.
 class Ngspice {
-  static final Ngspice _instance = Ngspice._internal();
+  final NgspiceEngine engine;
 
-  factory Ngspice() {
-    return _instance;
-  }
+  Ngspice() : engine = NgspiceEngine();
 
-  Ngspice._internal();
+  Ngspice.withEngine(this.engine);
 
-  /// Initialize ngspice
+  /// Initializes the engine. Returns 0 on success (matching the C API).
   int init() {
-    return _bindings.ngSpice_Init(
-      nullptr, // printfcn
-      nullptr, // statfcn
-      nullptr, // ngexit
-      nullptr, // sdata
-      nullptr, // sinitdata
-      nullptr, // bgtrun
-      nullptr, // userData
-    );
+    engine.reset();
+    return 0;
   }
 
-  /// Execute a command
+  /// Executes an ngspice-style command (e.g. `run`, `print all`). Returns 0 on
+  /// success.
   int command(String cmd) {
-    final cmdPtr = cmd.toNativeUtf8();
-    final result = _bindings.ngSpice_Command(cmdPtr.cast<Char>());
-    malloc.free(cmdPtr);
-    return result;
+    try {
+      return engine.command(cmd) ? 0 : 1;
+    } catch (_) {
+      return 1;
+    }
   }
 
-  /// Load a circuit from an array of strings
+  /// Loads a circuit from an array of netlist lines. Returns 0 on success.
   int circuit(List<String> circArray) {
-    final pointers = malloc<Pointer<Char>>(circArray.length + 1);
-    for (int i = 0; i < circArray.length; i++) {
-      pointers[i] = circArray[i].toNativeUtf8().cast<Char>();
+    try {
+      engine.loadCircuit(circArray);
+      return 0;
+    } catch (_) {
+      return 1;
     }
-    pointers[circArray.length] = nullptr;
-    
-    final result = _bindings.ngSpice_Circ(pointers);
-    
-    for (int i = 0; i < circArray.length; i++) {
-      malloc.free(pointers[i]);
-    }
-    malloc.free(pointers);
-    
-    return result;
   }
 
-  /// Get real data vector by name
-  List<double>? getVector(String vecName) {
-    final namePtr = vecName.toNativeUtf8();
-    final infoPtr = _bindings.ngGet_Vec_Info(namePtr.cast<Char>());
-    malloc.free(namePtr);
+  /// Returns the named real data vector from the current result, or null.
+  List<double>? getVector(String vecName) => engine.getVector(vecName);
 
-    if (infoPtr == nullptr) {
-      return null;
-    }
+  /// Returns the named complex (AC) vector, or null.
+  List<Complex>? getComplexVector(String vecName) =>
+      engine.getComplexVector(vecName);
 
-    final info = infoPtr.ref;
-    final length = info.v_length;
-    if (length <= 0) return null;
-
-    if (info.v_realdata != nullptr) {
-      final data = <double>[];
-      for (int i = 0; i < length; i++) {
-        data.add(info.v_realdata[i]);
-      }
-      return data;
-    }
-
-    return null;
-  }
+  /// Names of all available vectors in the current result.
+  List<String> vectorNames() => engine.vectorNames();
 }
